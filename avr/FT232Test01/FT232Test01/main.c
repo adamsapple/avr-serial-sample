@@ -254,7 +254,7 @@ static inline void initialize()
 	TCCR0A	= 0b00000011;				// 高速PWM(PWM出力はOC0A(PB2))
 	TCCR0B	= PRESCALE_SEL;				// クロックを1024分周
 	
-	OCR0A	= 0;						// Timer0のA比較ﾚｼﾞｽﾀ(PWMのduty比=50%)
+	OCR0A	= 0;						// Timer0のA比較ﾚｼﾞｽﾀ(PWMのduty比)
 	OCR0B	= COUNTER_LED_OP;			// Timer0のB比較ﾚｼﾞｽﾀ
 
 	TIMSK	= _BV(OCIE0B);				// [TCNT0のB比較]を有効化

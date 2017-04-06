@@ -113,7 +113,9 @@ namespace SerialTest001
                 var dispatcher = System.Windows.Application.Current.Dispatcher;
                 dispatcher.BeginInvoke((Action)delegate ()
                 {
-                    textRecv.AppendText($"op: {msg.op} ({msg.val_c}, {msg.val_i_a}, {msg.val_i_b}, {msg.val_i_c})\n");
+                    var time = DateTime.Now;
+
+                    textRecv.AppendText($"[{time.ToString("mm:ss-fff")}] op: {msg.op} ({msg.val_c}, {msg.val_i_a}, {msg.val_i_b}, {msg.val_i_c})\n");
 
                     textRecv.SelectionStart = textRecv.Text.Length;
                     textRecv.ScrollToEnd();
@@ -266,6 +268,7 @@ namespace SerialTest001
         private void sliderPKM_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             //sliderPKM.Value = Math.Round(sliderPKM.Value);
+            
             SendNapMessage(new NotAmp.Protocol.Message("pkm", (Int16)sliderPKM.Value, 0, 0));
         }
     }
