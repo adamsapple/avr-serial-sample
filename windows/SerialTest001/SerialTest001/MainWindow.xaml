@@ -1,0 +1,45 @@
+﻿<Window x:Class="SerialTest001.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SerialTest001"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="350" Width="525" Loaded="Window_Loaded" ResizeMode="CanResizeWithGrip">
+    <DockPanel LastChildFill="True">
+        <GroupBox x:Name="groupBox" Header="シリアルポート設定" Margin="4,10,4,0" DockPanel.Dock="Top" Height="64">
+            <DockPanel>
+                <ComboBox x:Name="comboPort" HorizontalAlignment="Left" Width="108" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                <ComboBox x:Name="comboBaudrate" HorizontalAlignment="Left" VerticalAlignment="Center" Width="110" Margin="10,0,0,0"/>
+                <ComboBox x:Name="comboHandShake" HorizontalAlignment="Left" VerticalAlignment="Center" Width="151" Margin="10,0,0,0"/>
+                <Button x:Name="btnConnect" Content="接続" VerticalAlignment="Center" Width="70" Margin="0,0,10,0" Click="btnConnect_Click" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+            </DockPanel>
+        </GroupBox>
+        <TextBlock DockPanel.Dock="Top" Margin="4,10,0,0" TextWrapping="Wrap" Text="受信"/>
+        <StackPanel Orientation="Vertical" DockPanel.Dock="Bottom">
+            <DockPanel LastChildFill="True" DockPanel.Dock="Bottom" Margin="0,10,0,0">
+                <TextBlock DockPanel.Dock="Top" Margin="4,0,0,0" TextWrapping="Wrap" Text="送信"/>
+                <Button x:Name="btnSend" DockPanel.Dock="Right"   Content="送信" Margin="4" Width="70" Click="btnSend_Click" IsDefault="True" VerticalAlignment="Center"/>
+                <TextBox x:Name="textSend"  DockPanel.Dock="Left"   Height="25" Margin="4,4,0,4" TextWrapping="Wrap" Text="TextBox" />
+            </DockPanel>
+            <StackPanel Orientation="Vertical" Background="#FFE9FFF2">
+                <TextBlock  Margin="4" Text="NAP Commands" />
+                <StackPanel Orientation="Horizontal" Margin="4,0,4,10">
+                    <Button x:Name="btnNapWAY" Content="way" Width="50" Margin="10,0,0,0" Click="btnNapWAY_Click" VerticalAlignment="Center"/>
+                    <Button x:Name="btnNapVER" Content="ver" Width="50" Margin="10,0,0,0" Click="btnNapVER_Click" VerticalAlignment="Center"></Button>
+                    <Button x:Name="btnNapVOL" Content="vol" Width="50" Margin="10,0,0,0" Click="btnNapVOL_Click" VerticalAlignment="Center"></Button>
+                    <Button x:Name="btnNapMIC" Content="mic" Width="50" Margin="10,0,0,0" Click="btnNapMIC_Click" VerticalAlignment="Center"></Button>
+                    <Button x:Name="btnNapMPW" Content="mpw" Width="50" Margin="10,0,0,0" Click="btnNapMPW_Click" VerticalAlignment="Center"/>
+                    <GroupBox x:Name="groupBox1" Header="PKM" Padding="-13,0,0,0" Margin="4,-9,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="textBlock" TextWrapping="Wrap" Text="{Binding ElementName=sliderPKM, Path=Value, Mode=OneWay}" TextAlignment="Right"  Width="30" Margin="10,0,0,0"/>
+                            <Slider x:Name="sliderPKM" TickFrequency="1" IsSnapToTickEnabled="True" Margin="3,0,0,0" Width="100" ValueChanged="sliderPKM_ValueChanged" Maximum="1023" SmallChange="1" LargeChange="32"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+
+            </StackPanel>
+        </StackPanel>
+        <TextBox x:Name="textRecv" Margin="4,0" TextWrapping="Wrap" DockPanel.Dock="Top" Text="TextBox" VerticalScrollBarVisibility="Auto" IsReadOnly="True"/>
+    </DockPanel>
+</Window>
