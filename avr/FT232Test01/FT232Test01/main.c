@@ -61,6 +61,13 @@
 #define PORT_PWM				PORTB
 #define PORT_PWM_BIT			PB2
 
+#define	DDR_MPW					DDRB
+#define	PORT_MPW				PORTB
+#define	PORT_MPW_BIT			PB3
+#define	PIN_MPW					PINB
+
+
+
 
 #ifdef DEBUG
 #	define _delay_ms(x)			asm("nop")
@@ -96,7 +103,7 @@
 
 #define PWM0A_ON(x)				TCCR0A |= _BV(COM0A1);OCR0A = (x)
 #define PWM0A_OFF()				TCCR0A ^= _BV(COM0A1);OCR0A = 0
-
+#define GET_MPW()				((PIN_MPW>>PORT_MPW_BIT)&1)
 
 
 //! messageの命令ID一覧
@@ -113,35 +120,36 @@ enum {
 		MSG_OP_ID_PKM 					//!< peak meter
 } message_op;
 
+//! メッセージの共通フォーマット定義
 typedef struct
 {
 	char		op[3];					//!< 0-2:operator
 	union
 	{
-		char val_c[4];
+		char val_c[4];					//!< 3-6:chars value
 		struct
 		{
-			int16_t val_i_a;
-			int8_t	val_i_b;
-			int8_t	val_i_c;
+			int16_t val_i_a;			//!< 3-4:int16 value
+			int8_t	val_i_b;			//!< 5  :int8  value
+			int8_t	val_i_c;			//!< 6  :int8  value
 		};
 	};
-	char		reserve[1];				//!< 6-7:reserve
+	char		reserve[1];				//!< 7  :reserve
 } message;
 
+//! 内部の状態を格納する構造体
 typedef struct
 {
-	uint16_t	vol;
-	uint16_t	mic;
-	char		mpw;
-	uint16_t	pkm;
+	uint16_t	vol;					//!< 音量ボリューム(10bit)
+	uint16_t	mic;					//!< マイクボリューム(10bit)
+	uint8_t		mpw;					//!< マイクスイッチ状態
+	uint16_t	pkm;					//!< ピークメーター
 
 } status;
 
 
 
 volatile int timer				= COUNTER_LED;
-volatile int pkm				= 0;
 typedef void (*PFUNC_usart_transmit)(const void*, unsigned char);
 
 
@@ -204,11 +212,14 @@ static inline void initialize()
 	//======================================
 	// port configuration.
 	//======================================
-	DDR_LED	 |= _BV(PORT_LED_BIT);		// LED制御ポートの該当BITを出力設定に。
-	PORT_LED &= ~_BV(PORT_LED_BIT);		// PORT_LED_BITをLOに設定
+	DDR_LED	 |= _BV(PORT_LED_BIT);				// LED制御ポートの該当BITを出力設定に。
+	PORT_LED &= ~_BV(PORT_LED_BIT);				// PORT_LED_BITをLOに設定
 
-	DDR_PWM	 |= _BV(PORT_PWM_BIT);		// PWM出力ポートの該当BITを出力設定に。
-	PORT_PWM &= ~_BV(PORT_PWM_BIT);		// PORT_PWM_BITをLOに設定
+	DDR_PWM	 |= _BV(PORT_PWM_BIT);				// PWM出力ポートの該当BITを出力設定に。
+	PORT_PWM &= ~_BV(PORT_PWM_BIT);				// PORT_PWM_BITをLOに設定
+
+	DDR_MPW	 &= ~_BV(PORT_MPW_BIT);				// Mic Powerポートを入力に設定
+	PORT_MPW |= _BV(PORT_MPW_BIT);				// PORT_PWM_BITをプルアップ
 
 	//======================================
 	// timer configuration.
@@ -311,9 +322,8 @@ void msg_put_debug(const message* pmsg){
 static inline void status_update(status* pstats){
 	pstats->mic = (pstats->mic+1) & MIC_MASK;
 	pstats->vol = (pstats->vol+2) & VOL_MASK;
-	pstats->mpw ^= 1;		// 反転
-	//pstats->pkm ^= 1<<5;
-
+	pstats->mpw = GET_MPW();
+	//pstats->pkm = 0;
 }
 
 static inline char msg_make_response(message* pmsg, char opid, status* pstats)
@@ -347,6 +357,7 @@ static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 			break;
 		case MSG_OP_ID_PKM:
 			pstats->pkm = pmsg->val_i_a;
+			
 			if(pstats->pkm > 0)
 			{
 				PWM0A_ON(pstats->pkm>>2);
@@ -354,10 +365,10 @@ static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 				PWM0A_OFF();
 			}
 			
-			//memcpy(pmsg->op, MSG_OP_OK, sizeof(pmsg->op));
 			opid = MSG_OP_ID_NOP;
+			
 			//opid = MSG_OP_ID_OK;
-			//memcpy(pmsg->op, MSG_OP_IAM, sizeof(pmsg->op));
+			//memcpy(pmsg->op, MSG_OP_OK, sizeof(pmsg->op));
 			//memcpy(pmsg->val_c, APP_IDENTITY, sizeof(pmsg->val_c));
 			break;
 		default:
