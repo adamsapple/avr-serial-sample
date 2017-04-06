@@ -48,6 +48,7 @@
 #define	PRESCALE_256			0b100;
 #define	PRESCALE_1024			0b101;
 
+#define PRESCALE_SEL			PRESCALE_256
 #define COUNTER_1S				(31<<2)
 #define COUNTER_500MS			(COUNTER_1S >>1)
 #define COUNTER_LED				COUNTER_500MS
@@ -84,9 +85,18 @@
 #define MIC_BIT_WIDTH			10
 #define MIC_MAX					((1<<MIC_BIT_WIDTH)-1)
 #define MIC_MASK				MIC_MAX
+
 #define VOL_BIT_WIDTH			10
 #define VOL_MAX					((1<<VOL_BIT_WIDTH)-1)
 #define VOL_MASK				VOL_MAX
+
+#define PKM_BIT_WIDTH			10
+#define PKM_MAX					((1<<PKM_BIT_WIDTH)-1)
+#define PKM_MASK				PKM_MAX
+
+#define PWM_DUTY_BIT_WIDTH		8
+#define PWM_DUTY_MAX			((1<<PWM_DUTY_BIT_WIDTH)-1)
+#define PWM_DUTY_MASK			PWM_DUTY_MAX
 
 //! シリアルから流れてくるメッセージ群
 #define MSG_OP_NOP				"nop"					//!< no operation
@@ -101,8 +111,8 @@
 #define MSG_OP_PKM				"pkm"					//!< peak meter
 #define APP_IDENTITY			"fkad"
 
-#define PWM0A_ON(x)				TCCR0A |= _BV(COM0A1);OCR0A = (x)
-#define PWM0A_OFF()				TCCR0A ^= _BV(COM0A1);OCR0A = 0
+#define PWM0A_ON(x)				{TCCR0A |= _BV(COM0A1);OCR0A = (x);}
+#define PWM0A_OFF()				{TCCR0A ^= _BV(COM0A1);OCR0A = 0;}
 #define GET_MPW()				((PIN_MPW>>PORT_MPW_BIT)&1)
 
 
@@ -242,7 +252,7 @@ static inline void initialize()
 
 	TCNT0	= 0;						// タイマ0カウンタの初期化
 	TCCR0A	= 0b00000011;				// 高速PWM(PWM出力はOC0A(PB2))
-	TCCR0B	= PRESCALE_256;				// クロックを1024分周
+	TCCR0B	= PRESCALE_SEL;				// クロックを1024分周
 	
 	OCR0A	= 0;						// Timer0のA比較ﾚｼﾞｽﾀ(PWMのduty比=50%)
 	OCR0B	= COUNTER_LED_OP;			// Timer0のB比較ﾚｼﾞｽﾀ
@@ -356,11 +366,11 @@ static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 			//pmsg->val_i_c = 0;
 			break;
 		case MSG_OP_ID_PKM:
-			pstats->pkm = pmsg->val_i_a;
+			pstats->pkm = MIN(MAX(0, pmsg->val_i_a), PKM_MAX);
 			
 			if(pstats->pkm > 0)
 			{
-				PWM0A_ON(pstats->pkm>>2);
+				PWM0A_ON(pstats->pkm>>(PKM_BIT_WIDTH-PWM_DUTY_BIT_WIDTH));
 			}else{
 				PWM0A_OFF();
 			}
