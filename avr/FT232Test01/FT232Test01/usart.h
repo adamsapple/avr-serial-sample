@@ -44,7 +44,103 @@
 
 #include <avr/io.h>
 #include <avr/sfr_defs.h>		// _BV等
+#include <avr/interrupt.h>		// 割込処理等
 
+
+#if 0
+
+#define USART_BUFF_SIZE_BIT_WIDTH		(5)
+#define USART_BUFF_SIZE					(1<<USART_BUFF_SIZE_BIT_WIDTH)
+#define USART_BUFF_SIZE_MASK			(USART_BUFF_SIZE-1)
+
+#define INC_LOOP(x,mask)						x=(x+1)&(mask)
+
+typedef struct
+{
+	char buf[24];
+	volatile uint8_t seek_read;
+			 uint8_t seek_write;
+} ringbuffer;
+
+ringbuffer	usart_recv;
+ringbuffer	usart_send;
+
+
+// 割り込みによる受信
+
+static inline char usart_is_recieved()
+{
+	return (usart_recv.seek_read != usart_recv.seek_write);
+}
+
+static inline void usart_wait_for_recv()
+{
+	while(!usart_is_recieved());
+}
+
+static inline uint8_t usart_recieve_ring()
+{
+	usart_wait_for_recv();
+	uint8_t seek = usart_recv.seek_read;
+	cli();
+	INC_LOOP(usart_recv.seek_read, USART_BUFF_SIZE_MASK);
+	sei();
+	return usart_recv.buf[seek];
+}
+
+// 送信バッファにデータがあれば、そこから1バイト送信するルーチン。
+// 内部的に使用しているだけなのでユーザーは呼び出さないで。
+static inline void usart_private_send_char()
+{
+	// 値が同じ場合は送信バッファは空である
+	if(usart_send.seek_read == usart_send.seek_write)
+	{
+		return;
+	}
+
+	uint8_t seek = usart_send.seek_read;
+	cli();
+	INC_LOOP(usart_send.seek_read, USART_BUFF_SIZE_MASK);
+	sei();
+	UDR = usart_send.buf[seek];// 送信バッファのデータを送信(この後送信割り込みが発生。バッファが空になるまで送信が続く、はず。)
+}
+
+
+
+// 1バイト送信
+static inline void usart_send_char_ring(uint8_t data)
+{
+	// 送信バッファがいっぱいなら待つ
+	while(((usart_send.seek_write + 1) & USART_BUFF_SIZE_MASK) == usart_send.seek_read);
+	
+	// 何はともあれ送信バッファにデータを積む。
+	usart_send.buf[usart_send.seek_write] = data;
+	cli();
+	INC_LOOP(usart_send.seek_write, USART_BUFF_SIZE_MASK);
+	sei();
+
+	// 送信レジスタがセットされている == 送信できる状態　ならば、
+	// 一度だけ送信しておく。
+	if(bit_is_set(UCSRA, UDRIE))
+	{
+		usart_private_send_char();
+	}
+
+	// 例えば次のように送信バッファにデータを積まずにUDR0に直接アクセスするコードは
+	// よくない。
+	// if (UCSR0A & (1<<UDRE0))
+	//    UDR0 = c;
+	// else
+	//    usart_sendData[usart_send_write++] = c;
+	// これは、else句が実行される瞬間にUSART_TX_vectによる割り込みがかかり、
+	// usart_send_write == usart_send_readであった場合、次にsendCharが呼び出されて
+	// その送信が完了するまでここで積んだデータが送信されないからである。
+}
+
+
+
+
+#endif
 
 
 //=============================================================================

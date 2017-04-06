@@ -17,10 +17,39 @@
 #include <util/setbaud.h>		// F_CPU、BAUD宣言のチェック
 
 //! シリアルからの入力バッファ
-char stdin_buffer[16];
+char *stdin_buffer;//[16];
 //! エコー出力する場合は1
 char is_echo = 1;
 
+
+#if 0
+
+// 割り込みによる送信
+// 送信シフトレジスタが空になり、1フレームの送信が終わった時に発生
+ISR(USART_TX_vect)
+{
+	usart_private_send_char();
+}
+
+// 割込みによる送信
+ISR(USART_RX_vect)
+{
+	usart_recv.buf[usart_recv.seek_write] = UDR;    // 受信データを受信バッファに格納
+	cli();
+	INC_LOOP(usart_recv.seek_write, USART_BUFF_SIZE_MASK);
+	sei();
+}
+
+// UDRが空いたときに発生
+ISR(USART_UDRE_vect)
+{
+	usart_private_send_char();
+}
+#endif
+
+void set_stdin(char *ptr){
+	stdin_buffer = ptr;
+}
 
 //=============================================================================
 /**

@@ -20,6 +20,9 @@
 // http://www.chibiegg.net/elec/avr-elec/generate_pwm.htm sinテーブル
 // http://avrwiki.osdn.jp/cgi-bin/wiki.cgi?page=Timer0#p14
 // http://usicolog.nomaki.jp/engineering/avr/avrInterrupt.html#howToUse うしこblog
+// やねうらお AVRシリアル通信のリングバッファ
+// http://d.hatena.ne.jp/yaneurao/20080710
+// http://d.hatena.ne.jp/yaneurao/20080713
 //==============================================================================
 
 //======================================
