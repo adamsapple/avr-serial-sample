@@ -114,6 +114,7 @@
 #define MSG_OP_MPW				"mpw"					//!< mic power
 #define MSG_OP_VOL				"vol"					//!< volume
 #define MSG_OP_PKM				"pkm"					//!< peak meter
+#define MSG_OP_PIN				"pin"					//!< ping
 #define APP_IDENTITY			"fkad"
 
 #define PWM0A_ON(x)				{TCCR0A |= _BV(COM0A1);OCR0A = (x);}
@@ -132,8 +133,25 @@ enum {
 		MSG_OP_ID_MIC,					//!< mic
 		MSG_OP_ID_MPW,					//!< mic power
 		MSG_OP_ID_VOL,					//!< volume
-		MSG_OP_ID_PKM 					//!< peak meter
+		MSG_OP_ID_PKM,					//!< peak meter
+		MSG_OP_ID_PIN,					//!< ping
+		NUM_OF_MSG_OP_ID
 } message_op;
+
+const char *OPERATIONS[] = {
+	MSG_OP_NOP,
+	MSG_OP_OK,
+	MSG_OP_ERR,
+	MSG_OP_WAY,
+	MSG_OP_IAM,
+	MSG_OP_VER,
+	MSG_OP_MIC,
+	MSG_OP_MPW,
+	MSG_OP_VOL,
+	MSG_OP_PKM,
+	MSG_OP_PIN
+};
+
 
 //! メッセージの共通フォーマット定義
 typedef struct
@@ -287,6 +305,52 @@ static inline void initialize()
 	sei();
 }
 
+//=============================================================================
+/**
+ * message内opを評価しopidを返却
+ * @brief	message内opを評価しopidを返却
+ * @param	(pmsg) 評価対象のmessage
+ * @return	operation id
+ */
+ static inline char msg_get_opid(const message *pmsg){
+	char			opid = MSG_OP_ID_NOP;
+	const char			*pop;
+	unsigned char	i;
+
+	if(pmsg == NULL)
+	{
+		return opid;
+	}
+
+	pop = pmsg->op;
+
+	for(i=NUM_OF_MSG_OP_ID; i-->0;)
+	{
+		if( memcmp(pop, OPERATIONS[i], sizeof(pmsg->op)) )
+		{
+			continue;
+		}
+			
+		opid = i;
+		break;
+	}
+
+	return opid;
+}
+
+
+//=============================================================================
+/**
+ * message内opを、指定したopidから得られるopで上書き
+ * @brief	message内opをopidから得られるopで上書き
+ * @param	(pmsg) 評価対象のmessage
+ * @param	(opid) operation id
+ * @return	none
+ */
+static inline void msg_set_op(message *pmsg, char opid)
+{
+	memcpy(pmsg->op, OPERATIONS[(unsigned char)opid], sizeof(pmsg->op));
+}
 
 //=============================================================================
 /**
@@ -298,34 +362,16 @@ static inline void initialize()
  */
 char msg_get(message *pmsg, const char *pdata)
 {
-	char	opid = MSG_OP_ID_NOP;
-	char	*pop;
-
 	if(pmsg == NULL)
 	{
-		return opid;
+		return MSG_OP_ID_NOP;
 	}
 
 	// msgを初期化
 	memcpy(pmsg, pdata, sizeof(*pmsg));
-	pop = pmsg->op;
 	
 	// op部からop-indexを得る
-	if(memcmp(pop, MSG_OP_WAY, sizeof(pmsg->op)) == 0){
-		opid = MSG_OP_ID_WAY;
-	}else if(memcmp(pop, MSG_OP_VER, sizeof(pmsg->op)) == 0){
-		opid = MSG_OP_ID_VER;
-	}else if(memcmp(pop, MSG_OP_MIC, sizeof(pmsg->op)) == 0){
-	opid = MSG_OP_ID_MIC;
-	}else if(memcmp(pop, MSG_OP_MPW, sizeof(pmsg->op)) == 0){
-	opid = MSG_OP_ID_MPW;
-	}else if(memcmp(pop, MSG_OP_VOL, sizeof(pmsg->op)) == 0){
-		opid = MSG_OP_ID_VOL;
-	}else if(memcmp(pop, MSG_OP_PKM, sizeof(pmsg->op)) == 0){
-		opid = MSG_OP_ID_PKM;
-	}
-
-	return opid;
+	return msg_get_opid(pmsg);
 }
 
 
@@ -345,6 +391,13 @@ void msg_put_debug(const message* pmsg){
 	usart_puts("\r\n");
 }
 
+//=============================================================================
+/**
+ * DEBUG:messageをシリアルに出力する
+ * @brief	messageをシリアルに出力
+ * @param	(msg) 出力対象のmessage
+ * @return	none
+ */
 static inline void status_update(status* pstats){
 	pstats->mic = 1;//(pstats->mic+1) & MIC_MASK;
 	pstats->vol = 2;//(pstats->vol+2) & VOL_MASK;
@@ -352,13 +405,13 @@ static inline void status_update(status* pstats){
 	//pstats->pkm = 0;
 }
 
+
 static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 {
 	switch(opid)
 	{
 		case MSG_OP_ID_WAY:
 			opid = MSG_OP_ID_IAM;
-			memcpy(pmsg->op, MSG_OP_IAM, sizeof(pmsg->op));
 			memcpy(pmsg->val_c, APP_IDENTITY, sizeof(pmsg->val_c));
 			break;
 		case MSG_OP_ID_VER:
@@ -367,19 +420,16 @@ static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 			//pmsg->val_i_c = 0;
 			break;
 		case MSG_OP_ID_MIC:
-			memcpy(pmsg->op, MSG_OP_MIC, sizeof(pmsg->op));
 			pmsg->val_i_a = MIN(MAX(0, pstats->mic), MIC_MAX);
 			//pmsg->val_i_b = 0;
 			//pmsg->val_i_c = 0;
 			break;
 		case MSG_OP_ID_MPW:
-			memcpy(pmsg->op, MSG_OP_MPW, sizeof(pmsg->op));
 			pmsg->val_i_a = MIN(MAX(0, pstats->mpw), 1);
 			//pmsg->val_i_b = 0;
 			//pmsg->val_i_c = 0;
 			break;
 		case MSG_OP_ID_VOL:
-			memcpy(pmsg->op, MSG_OP_VOL, sizeof(pmsg->op));
 			pmsg->val_i_a = MIN(MAX(0, pstats->vol), VOL_MAX);
 			//pmsg->val_i_b = 0;
 			//pmsg->val_i_c = 0;
@@ -394,21 +444,21 @@ static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 				PWM0A_OFF();
 			}
 			
-			opid = MSG_OP_ID_NOP;
-			
 			opid = MSG_OP_ID_OK;
-			memcpy(pmsg->op, MSG_OP_OK, sizeof(pmsg->op));
 			memcpy(pmsg->val_c, APP_IDENTITY, sizeof(pmsg->val_c));
 			break;
 		default:
 			opid = MSG_OP_ID_NOP;
 	}
 	
+	msg_set_op(pmsg, opid);
+
+
 	return opid;
 }
 
 
-void make_and_send_response(message *pmsg, char opid, status *pstats){
+void msg_make_and_send_response(message *pmsg, char opid, status *pstats){
 	opid = msg_make_response(pmsg, opid, pstats);				//!< 受信データを元に返信データを作成
 
 	//! 返信が必要であれば、返信する
@@ -417,6 +467,7 @@ void make_and_send_response(message *pmsg, char opid, status *pstats){
 		usart_transmit_bytes(pmsg, (unsigned char)sizeof(*pmsg));	//!< 返信データを送信
 	}
 }
+
 
 //=============================================================================
 //
@@ -429,7 +480,7 @@ int main()
 	char    opid;
 	message	msg;
 	status  stats	 = {0};
-	status  stats_plv= {0};
+	status  stats_plv= {-1,-1,-1,-1};
 	
 	initialize();									//!< 初期化
 
@@ -446,16 +497,16 @@ int main()
 
 		status_update(&stats);										//!< ステータス更新
 		
-		make_and_send_response(&msg, opid, &stats);
+		msg_make_and_send_response(&msg, opid, &stats);
 		
 		if(stats.mic != stats_plv.mic){
-			make_and_send_response(&msg, MSG_OP_ID_MIC, &stats);
+			msg_make_and_send_response(&msg, MSG_OP_ID_MIC, &stats);
 		}
 		if(stats.vol != stats_plv.vol){
-			make_and_send_response(&msg, MSG_OP_ID_VOL, &stats);
+			msg_make_and_send_response(&msg, MSG_OP_ID_VOL, &stats);
 		}
 		if(stats.mpw != stats_plv.mpw){
-			make_and_send_response(&msg, MSG_OP_ID_MPW, &stats);
+			msg_make_and_send_response(&msg, MSG_OP_ID_MPW, &stats);
 		}
 
 		memcpy(&stats_plv, &stats, sizeof(stats));
