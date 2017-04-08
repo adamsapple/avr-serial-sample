@@ -12,6 +12,7 @@
 #ifndef F_CPU
 #	define F_CPU	8000000UL	// CPU-Frequency=8MHz
 #	define BAUD		9600		// シリアル通信のボーレート()
+//#	define BAUD		19200		// シリアル通信のボーレート()
 #endif
 
 

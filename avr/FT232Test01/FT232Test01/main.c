@@ -73,6 +73,7 @@
 
 
 
+
 #ifdef DEBUG
 #	define _delay_ms(x)			asm("nop")
 #	define _delay_us(x)			asm("nop")
@@ -101,6 +102,7 @@
 #define PWM_DUTY_MAX			((1<<PWM_DUTY_BIT_WIDTH)-1)
 #define PWM_DUTY_MASK			PWM_DUTY_MAX
 
+
 //! シリアルから流れてくるメッセージ群
 #define MSG_OP_NOP				"nop"					//!< no operation
 #define MSG_OP_OK				"ok_"					//!< ok
@@ -116,7 +118,7 @@
 
 #define PWM0A_ON(x)				{TCCR0A |= _BV(COM0A1);OCR0A = (x);}
 #define PWM0A_OFF()				{TCCR0A ^= _BV(COM0A1);OCR0A = 0;}
-#define GET_MPW()				((PIN_MPW>>PORT_MPW_BIT)&1)
+#define GET_MPW()				(~((PIN_MPW>>PORT_MPW_BIT)))&1
 
 
 //! messageの命令ID一覧
@@ -215,9 +217,10 @@ static inline void initialize()
 		LED_LISTEN	(OUT)	PD2
 		LED_CONNECT	(OUT)	PD3
 		LED_PING	(OUT)	PD5
+		RTS			(IN)	PA1
+		CTS			(OUT)	PA0
 		
 		(未使用)
-			PA0,PA1
 			PD4,PD6
 			PB0
 	*/
@@ -233,6 +236,16 @@ static inline void initialize()
 
 	DDR_MPW	 &= ~_BV(PORT_MPW_BIT);				// Mic Powerポートを入力に設定
 	PORT_MPW |= _BV(PORT_MPW_BIT);				// PORT_PWM_BITをプルアップ
+
+#if defined USE_RTSCTS
+	DDR_CTSRTS	|= _BV(CTS_OUT);				// CTSを出力に設定
+	DDR_CTSRTS	&= ~_BV(RTS_IN);				// RTSを入力に設定
+	PORT_CTSRTS |= _BV(RTS_IN);					// RTS_INをプルアップ
+#endif
+
+	DDR_MPW	 &= ~_BV(PORT_MPW_BIT);				// mic_powerを入力に設定
+	PORT_MPW |= _BV(PORT_MPW_BIT);				// mic_powerをプルアップ
+
 
 	//======================================
 	// timer configuration.
@@ -333,8 +346,8 @@ void msg_put_debug(const message* pmsg){
 }
 
 static inline void status_update(status* pstats){
-	pstats->mic = (pstats->mic+1) & MIC_MASK;
-	pstats->vol = (pstats->vol+2) & VOL_MASK;
+	pstats->mic = 1;//(pstats->mic+1) & MIC_MASK;
+	pstats->vol = 2;//(pstats->vol+2) & VOL_MASK;
 	pstats->mpw = GET_MPW();
 	//pstats->pkm = 0;
 }
@@ -354,16 +367,19 @@ static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 			//pmsg->val_i_c = 0;
 			break;
 		case MSG_OP_ID_MIC:
+			memcpy(pmsg->op, MSG_OP_MIC, sizeof(pmsg->op));
 			pmsg->val_i_a = MIN(MAX(0, pstats->mic), MIC_MAX);
 			//pmsg->val_i_b = 0;
 			//pmsg->val_i_c = 0;
 			break;
 		case MSG_OP_ID_MPW:
+			memcpy(pmsg->op, MSG_OP_MPW, sizeof(pmsg->op));
 			pmsg->val_i_a = MIN(MAX(0, pstats->mpw), 1);
 			//pmsg->val_i_b = 0;
 			//pmsg->val_i_c = 0;
 			break;
 		case MSG_OP_ID_VOL:
+			memcpy(pmsg->op, MSG_OP_VOL, sizeof(pmsg->op));
 			pmsg->val_i_a = MIN(MAX(0, pstats->vol), VOL_MAX);
 			//pmsg->val_i_b = 0;
 			//pmsg->val_i_c = 0;
@@ -380,15 +396,26 @@ static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 			
 			opid = MSG_OP_ID_NOP;
 			
-			//opid = MSG_OP_ID_OK;
-			//memcpy(pmsg->op, MSG_OP_OK, sizeof(pmsg->op));
-			//memcpy(pmsg->val_c, APP_IDENTITY, sizeof(pmsg->val_c));
+			opid = MSG_OP_ID_OK;
+			memcpy(pmsg->op, MSG_OP_OK, sizeof(pmsg->op));
+			memcpy(pmsg->val_c, APP_IDENTITY, sizeof(pmsg->val_c));
 			break;
 		default:
 			opid = MSG_OP_ID_NOP;
 	}
 	
 	return opid;
+}
+
+
+void make_and_send_response(message *pmsg, char opid, status *pstats){
+	opid = msg_make_response(pmsg, opid, pstats);				//!< 受信データを元に返信データを作成
+
+	//! 返信が必要であれば、返信する
+	if(opid != MSG_OP_ID_NOP)
+	{
+		usart_transmit_bytes(pmsg, (unsigned char)sizeof(*pmsg));	//!< 返信データを送信
+	}
 }
 
 //=============================================================================
@@ -402,6 +429,7 @@ int main()
 	char    opid;
 	message	msg;
 	status  stats	 = {0};
+	status  stats_plv= {0};
 	
 	initialize();									//!< 初期化
 
@@ -417,13 +445,20 @@ int main()
 		}
 
 		status_update(&stats);										//!< ステータス更新
-		opid = msg_make_response(&msg, opid, &stats);				//!< 受信データを元に返信データを作成
 		
-		//! 返信が必要であれば、返信する
-		if(opid != MSG_OP_ID_NOP)
-		{
-			usart_transmit_bytes(&msg, (unsigned char)sizeof(msg));	//!< 返信データを送信 
+		make_and_send_response(&msg, opid, &stats);
+		
+		if(stats.mic != stats_plv.mic){
+			make_and_send_response(&msg, MSG_OP_ID_MIC, &stats);
 		}
+		if(stats.vol != stats_plv.vol){
+			make_and_send_response(&msg, MSG_OP_ID_VOL, &stats);
+		}
+		if(stats.mpw != stats_plv.mpw){
+			make_and_send_response(&msg, MSG_OP_ID_MPW, &stats);
+		}
+
+		memcpy(&stats_plv, &stats, sizeof(stats));
 
 		//msg_put_debug(&msg);
 	}

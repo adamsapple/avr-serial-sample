@@ -46,6 +46,13 @@
 #include <avr/sfr_defs.h>		// _BV等
 #include <avr/interrupt.h>		// 割込処理等
 
+#define USE_RTSCTS
+
+#define	DDR_CTSRTS				DDRA
+#define	PORT_CTSRTS				PORTA
+#define	PIN_CTSRTS				PINA
+#define RTS_IN					PA1
+#define CTS_OUT					PA0
 
 #if 0
 
@@ -151,9 +158,21 @@ static inline void usart_send_char_ring(uint8_t data)
  */
 static inline uint8_t usart_recieve( void )
 {
+#if defined USE_RTSCTS
+	uint8_t val;
+	PORT_CTSRTS &= ~_BV(CTS_OUT);
+
+	loop_until_bit_is_set(UCSRA, RXCIE);		// 受信完了待ち:受信が完了するとUCSRAのRXCIE(7bit)が1になる
+	
+	val = UDR;
+	PORT_CTSRTS |= _BV(CTS_OUT);
+
+	return val;
+#else
 	loop_until_bit_is_set(UCSRA, RXCIE);		// 受信完了待ち:受信が完了するとUCSRAのRXCIE(7bit)が1になる
 	
 	return UDR;
+#endif
 }
 
 
@@ -166,8 +185,11 @@ static inline uint8_t usart_recieve( void )
  */
 static inline void usart_transmit( uint8_t data )
 {
-	loop_until_bit_is_set(UCSRA, UDRIE);		// バッファ待機待ち:送信が完了しバッファが空になるとUCSRAのUDRIE(5bit)が1になる
-	
+#if defined USE_RTSCTS
+	loop_until_bit_is_clear(PIN_CTSRTS, RTS_IN);	// 相手の送信要求待ち
+#endif
+	loop_until_bit_is_set(UCSRA, UDRIE);			// バッファ待機待ち:送信が完了しバッファが空になるとUCSRAのUDRIE(5bit)が1になる
+
 	UDR = data;
 }
 

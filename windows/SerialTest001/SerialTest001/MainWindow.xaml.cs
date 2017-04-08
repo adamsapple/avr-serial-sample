@@ -179,6 +179,7 @@ namespace SerialTest001
             serialPort1.Parity   = Parity.None;                         //!< パリティビットをセットする. (パリティビット = なし)
             serialPort1.StopBits = StopBits.One;                        //!< ストップビットをセットする. (ストップビット = 1ビット)
             serialPort1.Encoding = Encoding.ASCII;                      //!< 文字コードをセットする
+            //serialPort1.RtsEnable = true;
 
             //! フロー制御をコンボボックスから取り出す.
             var ctrl = (HandShakeItem)comboHandShake.SelectedItem;
