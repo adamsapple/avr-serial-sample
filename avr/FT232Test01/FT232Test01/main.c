@@ -57,13 +57,17 @@
 #define COUNTER_LED				COUNTER_500MS
 #define COUNTER_LED_OP			(249)
 
-#define DDR_LED					DDRB
-#define PORT_LED				PORTB
-#define PORT_LED_BIT			PB0
+#define DDR_LED					DDRD
+#define PORT_LED				PORTD
+#define PORT_LED_BIT			PD5
 
 #define DDR_PWM					DDRB
 #define PORT_PWM				PORTB
 #define PORT_PWM_BIT			PB2
+
+#define DDR_RLY					DDRB
+#define PORT_RLY				PORTB
+#define PORT_RLY_BIT			PB1
 
 #define	DDR_MPW					DDRB
 #define	PORT_MPW				PORTB
@@ -115,7 +119,11 @@
 #define MSG_OP_VOL				"vol"					//!< volume
 #define MSG_OP_PKM				"pkm"					//!< peak meter
 #define MSG_OP_PIN				"pin"					//!< ping
-#define APP_IDENTITY			"fkad"
+
+#define APP_IDENTITY			"namp"
+#define APP_VERSION_MAJOR		1
+#define APP_VERSION_MINOR		0
+#define APP_VERSION_DEV			0
 
 #define PWM0A_ON(x)				{TCCR0A |= _BV(COM0A1);OCR0A = (x);}
 #define PWM0A_OFF()				{TCCR0A ^= _BV(COM0A1);OCR0A = 0;}
@@ -232,13 +240,13 @@ static inline void initialize()
 		RESET		(--)	PA2
 		USART_RX	(--)	PD0
 		USART_TX	(--)	PD1
-		LED_LISTEN	(OUT)	PD2
-		LED_CONNECT	(OUT)	PD3
-		LED_PING	(OUT)	PD5
 		RTS			(IN)	PA1
 		CTS			(OUT)	PA0
+		LED_PING	(OUT)	PD5
 		
-		(未使用)
+		--- 未使用 ---
+		LED_LISTEN	(OUT)	PD2
+		LED_CONNECT	(OUT)	PD3
 			PD4,PD6
 			PB0
 	*/
@@ -263,6 +271,9 @@ static inline void initialize()
 
 	DDR_MPW	 &= ~_BV(PORT_MPW_BIT);				// mic_powerを入力に設定
 	PORT_MPW |= _BV(PORT_MPW_BIT);				// mic_powerをプルアップ
+
+	DDR_RLY	 |= _BV(PORT_RLY_BIT);				// relayを出力に設定
+	PORT_RLY &= ~_BV(PORT_RLY_BIT);				// relayをLOに設定
 
 
 	//======================================
@@ -415,9 +426,9 @@ static inline char msg_make_response(message* pmsg, char opid, status* pstats)
 			memcpy(pmsg->val_c, APP_IDENTITY, sizeof(pmsg->val_c));
 			break;
 		case MSG_OP_ID_VER:
-			pmsg->val_i_a = 1;
-			//pmsg->val_i_b = 0;
-			//pmsg->val_i_c = 0;
+			pmsg->val_i_a = APP_VERSION_MAJOR;
+			pmsg->val_i_b = APP_VERSION_MINOR;
+			pmsg->val_i_c = APP_VERSION_DEV;
 			break;
 		case MSG_OP_ID_MIC:
 			pmsg->val_i_a = MIN(MAX(0, pstats->mic), MIC_MAX);
@@ -499,17 +510,22 @@ int main()
 		
 		msg_make_and_send_response(&msg, opid, &stats);
 		
-		if(stats.mic != stats_plv.mic){
+		if(stats.mic != stats_plv.mic)								//!< micの状態に変更があれば、最新情報を送信
+		{
 			msg_make_and_send_response(&msg, MSG_OP_ID_MIC, &stats);
 		}
-		if(stats.vol != stats_plv.vol){
+		if(stats.vol != stats_plv.vol)								//!< volumeの状態に変更があれば、最新情報を送信
+		{
 			msg_make_and_send_response(&msg, MSG_OP_ID_VOL, &stats);
 		}
-		if(stats.mpw != stats_plv.mpw){
+		if(stats.mpw != stats_plv.mpw)								//!< mic powerの状態に変更があれば、最新情報を送信
+		{
 			msg_make_and_send_response(&msg, MSG_OP_ID_MPW, &stats);
 		}
+		
+		stats_plv = stats;
 
-		memcpy(&stats_plv, &stats, sizeof(stats));
+		//memcpy(&stats_plv, &stats, sizeof(stats));
 
 		//msg_put_debug(&msg);
 	}
